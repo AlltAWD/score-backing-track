@@ -35,20 +35,19 @@ public:
     bool isLoading() const { return loading.load(); }
     juce::String getError() const;
     juce::String getFilePath() const;
+    juce::String getRequestedPath() const;
     double getDuration() const;
     bool hasClip() const;
 
     juce::AudioProcessorValueTreeState parameters;
     std::atomic<bool> hostAvailable { false }, hostPlaying { false };
     std::atomic<double> hostSeconds { 0 }, recordingSeconds { 0 };
-    std::atomic<uint64_t> processedBlocks { 0 };
 
 private:
     struct Clip
     {
         juce::AudioBuffer<float> audio;
         double sampleRate = 0;
-        juce::String path;
     };
     static juce::AudioProcessorValueTreeState::ParameterLayout makeParameters();
     void decode(const juce::File&, uint64_t generation, bool notifyHost);
@@ -56,11 +55,15 @@ private:
 
     juce::AudioFormatManager formats;
     juce::ThreadPool loader { 1 };
+    // clipLock is shared only with the audio thread and held just for swaps.
+    // Everything the editor or host polls lives under infoLock instead, so a
+    // poll can never make processBlock's try-lock fail and drop a block.
     mutable juce::SpinLock clipLock;
     std::unique_ptr<Clip> clip;
-    mutable juce::CriticalSection errorLock;
+    mutable juce::CriticalSection infoLock;
     juce::String error;
-    juce::String requestedPath;
+    juce::String requestedPath, loadedPath;
+    double loadedDuration = 0;
     std::atomic<bool> loading { false };
     std::atomic<uint64_t> loadGeneration { 0 };
     std::atomic<float>* offsetParameter;

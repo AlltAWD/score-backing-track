@@ -4,7 +4,7 @@
 BackingEditor::BackingEditor(BackingProcessor& owner)
     : AudioProcessorEditor(owner), processor(owner)
 {
-    setSize(620, 360);
+    setSize(620, 392);
     for (auto* label : { &title, &file, &status, &transport, &offsetLabel, &gainLabel, &hint })
     {
         addAndMakeVisible(*label);
@@ -14,10 +14,16 @@ BackingEditor::BackingEditor(BackingProcessor& owner)
     title.setFont(juce::Font(24.0f, juce::Font::bold));
     offsetLabel.setText("Recording offset", juce::dontSendNotification);
     gainLabel.setText("Recording volume", juce::dontSendNotification);
-    hint.setText("Positive offset skips the recording's intro; negative offset delays it.\nUse 100% speed and a recording matching the score. Add this effect to Master.", juce::dontSendNotification);
+    hint.setText("Positive offset skips the recording's intro; negative offset delays it. Double-click a\nslider to reset it. Use 100% playback speed with count-in off. Add this effect to Master.", juce::dontSendNotification);
     hint.setFont(juce::Font(13.0f));
     hint.setColour(juce::Label::textColourId, juce::Colour(0xffacb9cc));
     for (auto* button : { &choose, &remove }) addAndMakeVisible(*button);
+    const float nudgeSeconds[] = { -0.1f, -0.01f, 0.01f, 0.1f };
+    for (int i = 0; i < 4; ++i)
+    {
+        addAndMakeVisible(nudges[i]);
+        nudges[i].onClick = [this, step = nudgeSeconds[i]] { nudgeOffset(step); };
+    }
     addAndMakeVisible(mute);
     for (auto* slider : { &offset, &volume })
     {
@@ -30,6 +36,11 @@ BackingEditor::BackingEditor(BackingProcessor& owner)
     offset.setNumDecimalPlacesToDisplay(3);
     volume.setTextValueSuffix(" dB");
     volume.setNumDecimalPlacesToDisplay(1);
+    for (auto [slider, id] : { std::pair { &offset, "offset" }, std::pair { &volume, "gain" } })
+    {
+        auto* parameter = processor.parameters.getParameter(id);
+        slider->setDoubleClickReturnValue(true, parameter->convertFrom0to1(parameter->getDefaultValue()));
+    }
     offsetAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.parameters, "offset", offset);
     volumeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.parameters, "gain", volume);
     muteAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(processor.parameters, "mute", mute);
@@ -56,6 +67,15 @@ void BackingEditor::chooseFile()
         });
 }
 
+void BackingEditor::nudgeOffset(float seconds)
+{
+    auto* parameter = processor.parameters.getParameter("offset");
+    const float current = processor.parameters.getRawParameterValue("offset")->load();
+    parameter->beginChangeGesture();
+    parameter->setValueNotifyingHost(parameter->convertTo0to1(current + seconds));
+    parameter->endChangeGesture();
+}
+
 void BackingEditor::paint(juce::Graphics& graphics) { graphics.fillAll(juce::Colour(0xff172235)); }
 
 void BackingEditor::resized()
@@ -70,6 +90,14 @@ void BackingEditor::resized()
     area.removeFromTop(12);
     auto row = area.removeFromTop(38);
     offsetLabel.setBounds(row.removeFromLeft(145)); offset.setBounds(row);
+    row = area.removeFromTop(30);
+    row.removeFromLeft(145);
+    for (auto& nudge : nudges)
+    {
+        nudge.setBounds(row.removeFromLeft(72).reduced(0, 2));
+        row.removeFromLeft(8);
+    }
+    area.removeFromTop(4);
     row = area.removeFromTop(38);
     gainLabel.setBounds(row.removeFromLeft(145)); volume.setBounds(row);
     mute.setBounds(area.removeFromTop(30));
@@ -80,7 +108,9 @@ void BackingEditor::resized()
 
 void BackingEditor::timerCallback()
 {
-    const auto path = processor.getFilePath();
+    // A restored recording that failed to load still names its file; the status says why.
+    auto path = processor.getFilePath();
+    if (path.isEmpty()) path = processor.getRequestedPath();
     file.setText(path.isEmpty() ? "Choose a recording to get started" : juce::File(path).getFileName(), juce::dontSendNotification);
     file.setTooltip(path);
     remove.setEnabled(processor.hasClip() || processor.isLoading());

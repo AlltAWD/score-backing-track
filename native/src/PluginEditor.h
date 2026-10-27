@@ -13,9 +13,12 @@ public:
 private:
     void timerCallback() override;
     void chooseFile();
+    void nudgeOffset(float seconds);
     BackingProcessor& processor;
     juce::Label title, file, status, transport, offsetLabel, gainLabel, hint;
     juce::TextButton choose { "Choose recording..." }, remove { "Remove" };
+    juce::TextButton nudges[4] { juce::TextButton { "-0.1 s" }, juce::TextButton { "-0.01 s" },
+                                 juce::TextButton { "+0.01 s" }, juce::TextButton { "+0.1 s" } };
     juce::ToggleButton mute { "Mute recording" };
     juce::Slider offset, volume;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> offsetAttachment, volumeAttachment;

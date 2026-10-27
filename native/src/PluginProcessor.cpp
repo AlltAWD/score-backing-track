@@ -52,7 +52,6 @@ bool BackingProcessor::isBusesLayoutSupported(const BusesLayout& layout) const
 void BackingProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
 {
     juce::ScopedNoDenormals noDenormals;
-    ++processedBlocks;
     const auto* head = getPlayHead();
     const auto position = head != nullptr ? head->getPosition() : juce::Optional<juce::AudioPlayHead::PositionInfo>();
     const bool hasTime = position.hasValue()
@@ -110,7 +109,7 @@ void BackingProcessor::loadFile(const juce::File& file, bool notifyHost)
 {
     const auto generation = ++loadGeneration;
     {
-        const juce::ScopedLock lock(errorLock);
+        const juce::ScopedLock lock(infoLock);
         error.clear();
         requestedPath = file.getFullPathName();
         loading.store(true);
@@ -136,7 +135,8 @@ void BackingProcessor::decode(const juce::File& file, uint64_t generation, bool 
         auto loaded = std::make_unique<Clip>();
         loaded->audio.setSize(channels, static_cast<int>(reader->lengthInSamples));
         loaded->sampleRate = reader->sampleRate;
-        loaded->path = file.getFullPathName();
+        const auto path = file.getFullPathName();
+        const double duration = loaded->audio.getNumSamples() / loaded->sampleRate;
         constexpr int chunk = 65536;
         for (int start = 0; start < loaded->audio.getNumSamples(); start += chunk)
         {
@@ -151,17 +151,19 @@ void BackingProcessor::decode(const juce::File& file, uint64_t generation, bool 
                 if (!std::isfinite(loaded->audio.getSample(channel, i))) loaded->audio.setSample(channel, i, 0);
         if (generation != loadGeneration.load()) return;
         {
-            const juce::SpinLock::ScopedLockType lock(clipLock);
+            // Publish the clip and its metadata together (lock order: info, then clip).
+            const juce::ScopedLock info(infoLock);
             if (generation != loadGeneration.load()) return;
-            clip.swap(loaded);
+            {
+                const juce::SpinLock::ScopedLockType lock(clipLock);
+                clip.swap(loaded);
+            }
+            loadedPath = path;
+            loadedDuration = duration;
+            loading.store(false);
         }
         // 'loaded' now owns the previous recording; destroy it on this worker.
         loaded.reset();
-        {
-            const juce::ScopedLock lock(errorLock);
-            if (generation != loadGeneration.load()) return;
-            loading.store(false);
-        }
         if (notifyHost) updateHostDisplay(juce::AudioProcessorListener::ChangeDetails().withNonParameterStateChanged(true));
     }
     catch (const std::bad_alloc&)
@@ -171,7 +173,7 @@ void BackingProcessor::decode(const juce::File& file, uint64_t generation, bool 
 void BackingProcessor::setError(juce::String text, uint64_t generation)
 {
     if (generation != loadGeneration.load()) return;
-    const juce::ScopedLock lock(errorLock);
+    const juce::ScopedLock lock(infoLock);
     if (generation != loadGeneration.load()) return;
     error = std::move(text);
     loading.store(false);
@@ -186,9 +188,11 @@ void BackingProcessor::clearFile()
         clip.swap(previous);
     }
     {
-        const juce::ScopedLock lock(errorLock);
+        const juce::ScopedLock lock(infoLock);
         error.clear();
         requestedPath.clear();
+        loadedPath.clear();
+        loadedDuration = 0;
         loading.store(false);
     }
     updateHostDisplay(juce::AudioProcessorListener::ChangeDetails().withNonParameterStateChanged(true));
@@ -196,35 +200,41 @@ void BackingProcessor::clearFile()
 
 juce::String BackingProcessor::getError() const
 {
-    const juce::ScopedLock lock(errorLock);
+    const juce::ScopedLock lock(infoLock);
     return error;
 }
 
 juce::String BackingProcessor::getFilePath() const
 {
-    const juce::SpinLock::ScopedLockType lock(clipLock);
-    return clip != nullptr ? clip->path : juce::String();
+    const juce::ScopedLock lock(infoLock);
+    return loadedPath;
+}
+
+juce::String BackingProcessor::getRequestedPath() const
+{
+    const juce::ScopedLock lock(infoLock);
+    return requestedPath;
 }
 
 double BackingProcessor::getDuration() const
 {
-    const juce::SpinLock::ScopedLockType lock(clipLock);
-    return clip != nullptr ? clip->audio.getNumSamples() / clip->sampleRate : 0;
+    const juce::ScopedLock lock(infoLock);
+    return loadedDuration;
 }
 
 bool BackingProcessor::hasClip() const
 {
-    const juce::SpinLock::ScopedLockType lock(clipLock);
-    return clip != nullptr;
+    const juce::ScopedLock lock(infoLock);
+    return loadedPath.isNotEmpty();
 }
 
 void BackingProcessor::getStateInformation(juce::MemoryBlock& destination)
 {
     auto state = parameters.copyState();
-    auto path = getFilePath();
+    juce::String path;
     {
-        const juce::ScopedLock lock(errorLock);
-        if (loading.load() || path.isEmpty()) path = requestedPath;
+        const juce::ScopedLock lock(infoLock);
+        path = loading.load() || loadedPath.isEmpty() ? requestedPath : loadedPath;
     }
     state.setProperty("audioFile", path, nullptr);
     if (const auto xml = state.createXml()) copyXmlToBinary(*xml, destination);

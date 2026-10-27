@@ -11,7 +11,7 @@ import zipfile
 
 
 def main(appimage):
-    from Xlib import X, display
+    from Xlib import X, XK, display
     from Xlib.ext import xtest
     root = Path(__file__).resolve().parents[2]
     out = root / "artifacts/native-gui"
@@ -25,6 +25,9 @@ def main(appimage):
     (config / "MuseScore/MuseScore4.ini").write_text(f'[application]\nhasCompletedFirstLaunchSetup=true\npaths\\myPlugins={plugins}\n')
     user_data = data / "MuseScore/MuseScore4"
     user_data.mkdir(parents=True, exist_ok=True)
+    # The harness kills MuseScore at the end; a leftover session would open the
+    # restore-session dialog on the next run and block the test.
+    (user_data / "session/session.json").unlink(missing_ok=True)
     registry = json.loads((root / "artifacts/native-verification/data/MuseScore/MuseScore4/known_audio_plugins.json").read_text())
     registry[0]["path"] = str(Path.home() / ".vst3/Muse Backing Track.vst3")
     (user_data / "known_audio_plugins.json").write_text(json.dumps(registry))
@@ -102,6 +105,11 @@ MuseScore {
         xtest.fake_input(xdisplay, X.ButtonPress, 1)
         xtest.fake_input(xdisplay, X.ButtonRelease, 1)
         xdisplay.sync()
+    def escape():
+        key = xdisplay.keysym_to_keycode(XK.string_to_keysym("Escape"))
+        xtest.fake_input(xdisplay, X.KeyPress, key)
+        xtest.fake_input(xdisplay, X.KeyRelease, key)
+        xdisplay.sync()
     def capture(name):
         subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "x11grab", "-video_size", "1280x1024",
             "-i", os.environ["DISPLAY"], "-frames:v", "1", str(out / name)], check=True, timeout=10)
@@ -117,6 +125,8 @@ MuseScore {
             while time.monotonic() - began < 23:
                 if process.poll() is not None: break
                 if not opened and time.monotonic() - began > 7:
+                    # Dismiss startup dialogs (welcome, new-version notes) first.
+                    for _ in range(2): escape(); time.sleep(0.3)
                     click(286, 13); time.sleep(0.2); click(350, 82)
                     opened = True
                 text = (out / "musescore.log").read_text(errors="replace")

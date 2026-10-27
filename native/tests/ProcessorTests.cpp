@@ -176,6 +176,27 @@ void run(const juce::File& wav)
     processor.clearFile();
     require(!processor.hasClip() && processor.getError().isEmpty(), "Remove did not clear recording/error");
 
+    // A score whose recording moved restores its path, reports it, and saves it again.
+    BackingProcessor moved;
+    const auto missing = wav.getSiblingFile("moved-recording.wav");
+    parameter(moved, "offset", 0.25f);
+    juce::MemoryBlock movedState;
+    moved.getStateInformation(movedState);
+    auto movedXml = moved.getXmlFromBinary(movedState.getData(), static_cast<int>(movedState.getSize()));
+    require(movedXml != nullptr, "Could not read saved state");
+    movedXml->setAttribute("audioFile", missing.getFullPathName());
+    moved.copyXmlToBinary(*movedXml, movedState);
+    moved.setStateInformation(movedState.getData(), static_cast<int>(movedState.getSize()));
+    wait(moved);
+    require(!moved.hasClip() && moved.getError().isNotEmpty(), "Missing restored recording not reported");
+    require(moved.getRequestedPath() == missing.getFullPathName(), "Missing recording path not shown");
+    juce::MemoryBlock resaved;
+    moved.getStateInformation(resaved);
+    const auto resavedXml = moved.getXmlFromBinary(resaved.getData(), static_cast<int>(resaved.getSize()));
+    require(resavedXml != nullptr && resavedXml->getStringAttribute("audioFile") == missing.getFullPathName(),
+        "Saving lost the missing recording's path");
+    near(moved.parameters.getRawParameterValue("offset")->load(), 0.25f, "Offset lost with missing recording");
+
     // Repeated replacements and cancellation must not publish a stale decode.
     for (int i = 0; i < 10; ++i) processor.loadFile(wav);
     processor.clearFile();
