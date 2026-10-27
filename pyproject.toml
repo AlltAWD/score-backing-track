@@ -1,0 +1,10 @@
+[project]
+name = "muse-backing-track-development"
+version = "0.2.0"
+description = "Developer tools for the native Muse Backing Track VST3"
+requires-python = ">=3.11"
+license = "GPL-3.0-only"
+dependencies = ["python-xlib==0.33; sys_platform == 'linux'"]
+
+[tool.uv]
+package = false
