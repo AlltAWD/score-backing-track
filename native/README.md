@@ -68,6 +68,10 @@ tests on Linux and Windows; Windows host behavior in MuseScore is still
 unverified. Pushing a `v*` tag creates a draft release with both zips. Do not
 copy the Linux binary to Windows; build its Windows VST3 counterpart.
 
+Only Linux and Windows are supported for now. macOS is not built or tested; the
+code has no known macOS blockers, but a release would also need signing and
+notarization.
+
 ## Verification
 
 The native processor tests cover actual WAV loading, selected starts, backward
