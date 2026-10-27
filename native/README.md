@@ -1,8 +1,7 @@
 # Muse Backing Track — native VST3, version 0.2.0
 
-Play a recording directly inside MuseScore's audio engine. This version is an
-audio effect loaded through the Mixer. It requires neither the QML plugin nor
-the Python companion while running.
+Play a recording directly inside MuseScore's audio engine. The plugin is an
+audio effect loaded through the Mixer and needs nothing else at runtime.
 
 ## Use in MuseScore
 
@@ -15,7 +14,7 @@ the Python companion while running.
 
 Use the **Recording offset** value to align the recording: positive values skip
 its intro; negative values delay it. You can type seconds directly into the value
-box. **Recording volume** and **Mute recording** affect the backing recording.
+box or use the ±0.01 s / ±0.1 s buttons; double-click a slider to reset it. **Recording volume** and **Mute recording** affect the backing recording.
 The score's existing audio passes through the effect.
 
 Mute your own part in the instrument's Mixer channel when practicing. Keep the
@@ -46,8 +45,7 @@ Alternatively, extract the Linux VST3 archive into `~/.vst3/`. If your MuseScore
 configuration uses custom VST search directories, include this directory there.
 
 The Linux binary targets x86-64 Ubuntu 24.04 and is tested with MuseScore Studio
-4.7.5. It has no Python, QtMultimedia, localhost service, or companion-player
-dependency at runtime.
+4.7.5. It has no Python or other runtime dependency.
 
 ## Build
 
@@ -65,7 +63,9 @@ CMake downloads JUCE 7.0.12 on a fresh build. To use an existing checkout, add
 `native/build/MuseBacking_artefacts/Release/VST3/Muse Backing Track.vst3`.
 
 The same CMake project supports a Windows build with Visual Studio's C++ tools.
-Windows compilation, packaging, and host behavior are still unverified. Do not
+GitHub Actions (`.github/workflows/build.yml`) builds and runs the processor
+tests on Linux and Windows; Windows host behavior in MuseScore is still
+unverified. Pushing a `v*` tag creates a draft release with both zips. Do not
 copy the Linux binary to Windows; build its Windows VST3 counterpart.
 
 ## Verification
@@ -85,7 +85,7 @@ On a headless Linux machine, run it under `xvfb-run -a`.
 The full host test uses an isolated MuseScore profile, registers the VST3,
 renders a score with its piano part muted, and compares every backing sample
 against the original recording. A second render with the VST3 removed must be
-silent. It never launches the Python companion.
+silent.
 
 ```bash
 xvfb-run -a .venv/bin/python -E native/scripts/verify_native.py /path/to/MuseScore.AppImage
@@ -93,7 +93,10 @@ xvfb-run -a .venv/bin/python -E native/scripts/verify_native.py /path/to/MuseSco
 ```
 
 The GUI test additionally needs `python-xlib` and ffmpeg for input and screenshots.
-Its live playback uses a Master volume of -144 dB so it is inaudible.
+Its live playback uses a Master volume of -144 dB so it is inaudible. MuseScore
+always rescans `~/.vst3`, so the GUI test exercises the **installed** bundle:
+run `install_native.py` first. Evidence is written to the git-ignored
+`artifacts/` directory.
 
 ## Implementation notes
 

@@ -1,0 +1,71 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            name: linux-x86_64
+          - os: windows-2022
+            name: windows-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libfreetype-dev libfontconfig1-dev \
+            libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxext-dev \
+            libxrender-dev libxcomposite-dev xvfb
+
+      - name: Configure
+        run: cmake -S native -B native/build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build native/build --config Release --target MuseBacking_VST3 MuseBackingTests --parallel
+
+      - name: Test (Linux)
+        if: runner.os == 'Linux'
+        working-directory: native/build
+        run: xvfb-run -a ctest -C Release --output-on-failure
+
+      - name: Test (Windows)
+        if: runner.os == 'Windows'
+        working-directory: native/build
+        run: ctest -C Release --output-on-failure
+
+      - name: Package
+        working-directory: native/build/MuseBacking_artefacts/Release/VST3
+        run: cmake -E tar cf "${{ github.workspace }}/Muse-Backing-Track-${{ matrix.name }}.zip" --format=zip "Muse Backing Track.vst3"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Muse-Backing-Track-${{ matrix.name }}
+          path: Muse-Backing-Track-${{ matrix.name }}.zip
+
+  release:
+    # Tags create a draft release; review it and publish it by hand.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --generate-notes Muse-Backing-Track-*.zip
