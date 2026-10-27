@@ -10,7 +10,7 @@ BackingEditor::BackingEditor(BackingProcessor& owner)
         addAndMakeVisible(*label);
         label->setColour(juce::Label::textColourId, juce::Colour(0xffe4eaf2));
     }
-    title.setText("Muse Backing Track", juce::dontSendNotification);
+    title.setText("Score Backing Track", juce::dontSendNotification);
     title.setFont(juce::Font(24.0f, juce::Font::bold));
     offsetLabel.setText("Recording offset", juce::dontSendNotification);
     gainLabel.setText("Recording volume", juce::dontSendNotification);

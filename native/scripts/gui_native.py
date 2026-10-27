@@ -29,7 +29,9 @@ def main(appimage):
     # restore-session dialog on the next run and block the test.
     (user_data / "session/session.json").unlink(missing_ok=True)
     registry = json.loads((root / "artifacts/native-verification/data/MuseScore/MuseScore4/known_audio_plugins.json").read_text())
-    registry[0]["path"] = str(Path.home() / ".vst3/Muse Backing Track.vst3")
+    # The scan registry can hold stale entries; keep only this plugin, at its installed path.
+    registry = [entry for entry in registry if entry["meta"]["id"] == "Score Backing Track"]
+    registry[0]["path"] = str(Path.home() / ".vst3/Score Backing Track.vst3")
     (user_data / "known_audio_plugins.json").write_text(json.dumps(registry))
     (user_data / "extensions").mkdir(exist_ok=True)
     (user_data / "extensions/config.json").write_text(json.dumps([{
@@ -157,6 +159,6 @@ MuseScore {
                 os.killpg(process.pid, signal.SIGKILL); process.wait(5)
     text = (out / "musescore.log").read_text(errors="replace")
     print("\n".join(line for line in text.splitlines() if any(x in line for x in ["NATIVEGUI", "TypeError", "ReferenceError", "VstView", "VstEditor", "Failed to"]))[-8000:])
-    assert "fx=Muse Backing Track" in text, "Native Master effect was not available"
+    assert "fx=Score Backing Track" in text, "Native Master effect was not available"
     assert (out / "playing.png").exists(), "Live transport test did not reach playback"
     print("Native GUI test reached play/pause/seek; screenshots:", out, flush=True)

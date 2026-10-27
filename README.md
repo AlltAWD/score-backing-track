@@ -1,4 +1,4 @@
-# Muse Backing Track
+# Score Backing Track
 
 Play a local recording in sync with MuseScore Studio's score playback.
 
@@ -17,7 +17,7 @@ QML plugin, or background service is needed.
 
 1. Download the zip for your platform from the
    [Releases](../../releases) page and extract it. You get a folder named
-   `Muse Backing Track.vst3`. Keep the whole folder.
+   `Score Backing Track.vst3`. Keep the whole folder.
 2. Put that folder in your VST3 directory:
    - **Linux:** `~/.vst3/`
    - **Windows:** `C:\Program Files\Common Files\VST3\`
@@ -31,7 +31,7 @@ Reports are welcome.
 
 1. Open the Mixer (**F10**).
 2. In the **Master** channel's audio-effects slot, add
-   **MuseBacking → Muse Backing Track**.
+   **AlltAWD → Score Backing Track**.
 3. In the effect's window, click **Choose recording...** (WAV, MP3, FLAC, OGG
    or AIFF).
 4. Press Play. The recording follows MuseScore's playhead, including

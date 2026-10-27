@@ -1,4 +1,4 @@
-# Muse Backing Track — native VST3, version 0.2.0
+# Score Backing Track — native VST3, version 0.1.0
 
 Play a recording directly inside MuseScore's audio engine. The plugin is an
 audio effect loaded through the Mixer and needs nothing else at runtime.
@@ -7,7 +7,7 @@ audio effect loaded through the Mixer and needs nothing else at runtime.
 
 1. Install the VST3 bundle once, then restart MuseScore so it discovers it.
 2. Open the Mixer with **F10**.
-3. In the **Master** channel's effects area, add **MuseBacking → Muse Backing Track**.
+3. In the **Master** channel's effects area, add **AlltAWD → Score Backing Track**.
 4. Open that effect's editor and click **Choose recording...**.
 5. Choose a WAV, MP3, FLAC, OGG, or AIFF recording.
 6. Press Play in MuseScore. The recording follows the host's playback position.
@@ -32,7 +32,7 @@ and comprehensive repeat/jump/fermata support are not implemented.
 
 ## Linux installation
 
-The bundle belongs in `~/.vst3/Muse Backing Track.vst3/`. Keep the whole directory,
+The bundle belongs in `~/.vst3/Score Backing Track.vst3/`. Keep the whole directory,
 including `Contents`; copying only the `.so` is insufficient.
 
 From the project directory after building:
@@ -55,12 +55,12 @@ Web browsing and curl are disabled for the plugin. No standalone app is built.
 
 ```bash
 cmake -S native -B native/build -DCMAKE_BUILD_TYPE=Release
-cmake --build native/build --config Release --target MuseBacking_VST3 MuseBackingTests -j 3
+cmake --build native/build --config Release --target ScoreBacking_VST3 ScoreBackingTests -j 3
 ```
 
 CMake downloads JUCE 7.0.12 on a fresh build. To use an existing checkout, add
 `-DJUCE_PATH=/absolute/path/to/JUCE7` when configuring. The default output is
-`native/build/MuseBacking_artefacts/Release/VST3/Muse Backing Track.vst3`.
+`native/build/ScoreBacking_artefacts/Release/VST3/Score Backing Track.vst3`.
 
 The same CMake project supports a Windows build with Visual Studio's C++ tools.
 GitHub Actions (`.github/workflows/build.yml`) builds and runs the processor
@@ -77,7 +77,7 @@ state restoration, missing files, removal, and cancellation of stale decodes.
 With an X server available:
 
 ```bash
-native/build/MuseBackingTests_artefacts/Release/MuseBackingTests
+native/build/ScoreBackingTests_artefacts/Release/ScoreBackingTests
 ```
 
 On a headless Linux machine, run it under `xvfb-run -a`.

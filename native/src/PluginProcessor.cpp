@@ -19,7 +19,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout BackingProcessor::makeParame
 BackingProcessor::BackingProcessor()
     : AudioProcessor(BusesProperties().withInput("Input", juce::AudioChannelSet::stereo(), true)
                                      .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
-      parameters(*this, nullptr, "MuseBackingState", makeParameters()),
+      parameters(*this, nullptr, "ScoreBackingState", makeParameters()),
       offsetParameter(parameters.getRawParameterValue("offset")),
       gainParameter(parameters.getRawParameterValue("gain")),
       muteParameter(parameters.getRawParameterValue("mute"))

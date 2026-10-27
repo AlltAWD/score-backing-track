@@ -1,7 +1,7 @@
 # Verification — 2026-10-26
 
 - Ubuntu 24.04 x86-64, MuseScore Studio 4.7.5 official AppImage.
-- 37 native processor checks pass (`ctest` / `MuseBackingTests`).
+- 37 native processor checks pass (`ctest` / `ScoreBackingTests`).
 - MuseScore exported all 705,600 backing samples of the demo with every
   instrument muted; RMS error versus the source: 1.07e-10.
 - Removing the effect yields a silent reference (peak 4.8e-9). Both export

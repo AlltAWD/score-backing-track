@@ -8,7 +8,7 @@ import sys
 
 root = Path(__file__).resolve().parents[2]
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("--bundle", type=Path, default=root / "native/build/MuseBacking_artefacts/Release/VST3/Muse Backing Track.vst3")
+parser.add_argument("--bundle", type=Path, default=root / "native/build/ScoreBacking_artefacts/Release/VST3/Score Backing Track.vst3")
 parser.add_argument("--destination", type=Path)
 args = parser.parse_args()
 if args.destination:
@@ -25,4 +25,4 @@ target = directory / args.bundle.name
 directory.mkdir(parents=True, exist_ok=True)
 shutil.copytree(args.bundle, target, dirs_exist_ok=True)
 print("Installed:", target)
-print("Restart MuseScore. In Mixer, add MuseBacking → Muse Backing Track to Master effects.")
+print("Restart MuseScore. In Mixer, add AlltAWD → Score Backing Track to Master effects.")

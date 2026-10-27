@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(MuseBackingNative VERSION 0.2.0 LANGUAGES C CXX)
+project(ScoreBackingNative VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -22,12 +22,12 @@ endif()
 
 include(cmake/JuceShutdownCompatibility.cmake)
 
-juce_add_plugin(MuseBacking
-    COMPANY_NAME "MuseBacking"
-    BUNDLE_ID "org.musebacking.native"
-    PLUGIN_MANUFACTURER_CODE Muba
+juce_add_plugin(ScoreBacking
+    COMPANY_NAME "AlltAWD"
+    BUNDLE_ID "io.github.alltawd.scorebackingtrack"
+    PLUGIN_MANUFACTURER_CODE Atwd
     PLUGIN_CODE Bktr
-    PRODUCT_NAME "Muse Backing Track"
+    PRODUCT_NAME "Score Backing Track"
     DESCRIPTION "Play a recording in sync with the host timeline"
     FORMATS VST3
     IS_SYNTH FALSE
@@ -37,18 +37,18 @@ juce_add_plugin(MuseBacking
     COPY_PLUGIN_AFTER_BUILD FALSE
     VST3_CATEGORIES Fx Generator)
 
-target_sources(MuseBacking PRIVATE
+target_sources(ScoreBacking PRIVATE
     src/PluginProcessor.cpp
     src/PluginEditor.cpp)
-target_include_directories(MuseBacking PUBLIC src)
-target_compile_definitions(MuseBacking PUBLIC
+target_include_directories(ScoreBacking PUBLIC src)
+target_compile_definitions(ScoreBacking PUBLIC
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_USE_MP3AUDIOFORMAT=1
     JUCE_VST3_CAN_REPLACE_VST2=0
     JUCE_DISPLAY_SPLASH_SCREEN=0
     JUCE_REPORT_APP_USAGE=0)
-target_link_libraries(MuseBacking PRIVATE
+target_link_libraries(ScoreBacking PRIVATE
     juce::juce_audio_processors
     juce::juce_audio_formats
     juce::juce_gui_extra
@@ -58,15 +58,15 @@ if(UNIX AND NOT APPLE)
     # MuseScore 4.7 may discard its deferred instance cleanup at shutdown and
     # dlclose the module while JUCE's threads still run. Keep code mapped until
     # process exit; normal instance/editor cleanup is unaffected.
-    target_link_options(MuseBacking_VST3 PRIVATE "LINKER:-z,nodelete")
+    target_link_options(ScoreBacking_VST3 PRIVATE "LINKER:-z,nodelete")
 endif()
 
 option(BACKING_BUILD_TESTS "Build processor integration tests" ON)
 if(BACKING_BUILD_TESTS)
     enable_testing()
-    juce_add_console_app(MuseBackingTests PRODUCT_NAME "Muse Backing Track Tests")
-    target_sources(MuseBackingTests PRIVATE tests/ProcessorTests.cpp)
-    target_link_libraries(MuseBackingTests PRIVATE MuseBacking
+    juce_add_console_app(ScoreBackingTests PRODUCT_NAME "Score Backing Track Tests")
+    target_sources(ScoreBackingTests PRIVATE tests/ProcessorTests.cpp)
+    target_link_libraries(ScoreBackingTests PRIVATE ScoreBacking
         juce::juce_audio_processors juce::juce_audio_formats juce::juce_gui_extra)
-    add_test(NAME processor COMMAND MuseBackingTests)
+    add_test(NAME processor COMMAND ScoreBackingTests)
 endif()

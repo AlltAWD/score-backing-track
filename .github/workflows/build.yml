@@ -33,7 +33,7 @@ jobs:
         run: cmake -S native -B native/build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build native/build --config Release --target MuseBacking_VST3 MuseBackingTests --parallel
+        run: cmake --build native/build --config Release --target ScoreBacking_VST3 ScoreBackingTests --parallel
 
       - name: Test (Linux)
         if: runner.os == 'Linux'
@@ -46,13 +46,13 @@ jobs:
         run: ctest -C Release --output-on-failure
 
       - name: Package
-        working-directory: native/build/MuseBacking_artefacts/Release/VST3
-        run: cmake -E tar cf "${{ github.workspace }}/Muse-Backing-Track-${{ matrix.name }}.zip" --format=zip "Muse Backing Track.vst3"
+        working-directory: native/build/ScoreBacking_artefacts/Release/VST3
+        run: cmake -E tar cf "${{ github.workspace }}/Score-Backing-Track-${{ matrix.name }}.zip" --format=zip "Score Backing Track.vst3"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Muse-Backing-Track-${{ matrix.name }}
-          path: Muse-Backing-Track-${{ matrix.name }}.zip
+          name: Score-Backing-Track-${{ matrix.name }}
+          path: Score-Backing-Track-${{ matrix.name }}.zip
 
   release:
     # Tags create a draft release; review it and publish it by hand.
@@ -68,4 +68,4 @@ jobs:
       - name: Create draft release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --generate-notes Muse-Backing-Track-*.zip
+        run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --generate-notes Score-Backing-Track-*.zip

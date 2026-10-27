@@ -38,8 +38,8 @@ data.mkdir(exist_ok=True)
 env = {**os.environ, "XDG_CONFIG_HOME": str(config), "XDG_DATA_HOME": str(data),
     "QT_QPA_PLATFORM": "xcb", "QT_QUICK_BACKEND": "software", "QT_OPENGL": "software"}
 env.pop("PYTHONPATH", None)
-binary = root / "native/build/MuseBacking_artefacts/Release/VST3/Muse Backing Track.vst3"
-tests = root / "native/build/MuseBackingTests_artefacts/Release/MuseBackingTests"
+binary = root / "native/build/ScoreBacking_artefacts/Release/VST3/Score Backing Track.vst3"
+tests = root / "native/build/ScoreBackingTests_artefacts/Release/ScoreBackingTests"
 
 
 def run(name, command, timeout=90):
@@ -75,7 +75,7 @@ with zipfile.ZipFile(out / "base.mscz") as archive:
     settings = json.loads(archive.read("audiosettings.json"))
 print(json.dumps(settings, indent=2), flush=True)
 
-meta = next(item["meta"] for item in json.loads(registry.read_text()) if item["meta"]["id"] == "Muse Backing Track")
+meta = next(item["meta"] for item in json.loads(registry.read_text()) if item["meta"]["id"] == "Score Backing Track")
 assert "Generator" in meta["attributes"]["categories"], "Host must recognize generator category"
 # The registry and score serializers use different names for the same type.
 meta["type"] = "vst_plugin"

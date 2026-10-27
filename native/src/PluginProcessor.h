@@ -11,7 +11,7 @@ public:
     BackingProcessor();
     ~BackingProcessor() override;
 
-    const juce::String getName() const override { return "Muse Backing Track"; }
+    const juce::String getName() const override { return "Score Backing Track"; }
     void prepareToPlay(double sampleRate, int maximumBlockSize) override;
     void releaseResources() override {}
     bool isBusesLayoutSupported(const BusesLayout&) const override;
