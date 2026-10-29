@@ -17,6 +17,8 @@ elif sys.platform.startswith("linux"):
     directory = Path.home() / ".vst3"
 elif sys.platform == "win32":
     directory = Path(os.environ["LOCALAPPDATA"]) / "Programs/Common/VST3"
+elif sys.platform == "darwin":
+    directory = Path.home() / "Library/Audio/Plug-Ins/VST3"
 else:
     raise SystemExit("Use your platform's VST3 directory explicitly with --destination.")
 if not args.bundle.is_dir():

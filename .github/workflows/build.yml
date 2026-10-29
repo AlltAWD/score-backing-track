@@ -17,9 +17,13 @@ jobs:
             name: linux-x86_64
           - os: windows-2022
             name: windows-x64
+          - os: macos-15
+            name: macos-universal
+            # Quoted inside the value: the ';' must reach CMake, not the shell.
+            cmake_args: '"-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64"'
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -30,7 +34,7 @@ jobs:
             libxrender-dev libxcomposite-dev xvfb
 
       - name: Configure
-        run: cmake -S native -B native/build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S native -B native/build -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmake_args }}
 
       - name: Build
         run: cmake --build native/build --config Release --target ScoreBacking_VST3 ScoreBackingTests --parallel
@@ -40,16 +44,25 @@ jobs:
         working-directory: native/build
         run: xvfb-run -a ctest -C Release --output-on-failure
 
-      - name: Test (Windows)
-        if: runner.os == 'Windows'
+      - name: Test
+        if: runner.os != 'Linux'
         working-directory: native/build
         run: ctest -C Release --output-on-failure
+
+      - name: Ad-hoc sign (macOS)
+        # Apple Silicon refuses to load unsigned code; this is not a Developer ID signature.
+        if: runner.os == 'macOS'
+        working-directory: native/build/ScoreBacking_artefacts/Release/VST3
+        run: |
+          codesign --force --deep --sign - "Score Backing Track.vst3"
+          codesign --verify --deep --strict "Score Backing Track.vst3"
+          lipo -info "Score Backing Track.vst3/Contents/MacOS/Score Backing Track"
 
       - name: Package
         working-directory: native/build/ScoreBacking_artefacts/Release/VST3
         run: cmake -E tar cf "${{ github.workspace }}/Score-Backing-Track-${{ matrix.name }}.zip" --format=zip "Score Backing Track.vst3"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: Score-Backing-Track-${{ matrix.name }}
           path: Score-Backing-Track-${{ matrix.name }}.zip
@@ -62,7 +75,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           merge-multiple: true
       - name: Create draft release
