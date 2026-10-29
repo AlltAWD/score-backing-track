@@ -1,7 +1,10 @@
 # Verification — v0.2.0, 2026-10-29
 
 - Ubuntu 24.04 x86-64, MuseScore Studio 4.7.5 official AppImage.
-- 53 native processor checks pass (`ctest` / `ScoreBackingTests`), including:
+- 59 native processor checks pass (`ctest` / `ScoreBackingTests`) on Linux,
+  and in CI on Windows x64 and macOS (universal arm64 + x86_64), including:
+  - offsets are exact milliseconds on every platform (the default is exactly
+    0; before this fix macOS read it as 2.85e-5 s);
   - practice speed: a tone starting at 0.5 s in the recording starts at
     0.990 s in the score at 50% (expected 1.0) and at 0.242 s at 200%
     (expected 0.25), also after a seek; its pitch measures 440 Hz at 50% and
