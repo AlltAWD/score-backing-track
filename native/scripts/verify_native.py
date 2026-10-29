@@ -25,10 +25,11 @@ parser.add_argument("appimage", type=Path)
 parser.add_argument("--scan-only", action="store_true")
 parser.add_argument("--debug-export", action="store_true")
 parser.add_argument("--gui", action="store_true")
+parser.add_argument("--speed", type=int, default=100, help="GUI test: MuseScore and plugin playback speed in percent")
 args = parser.parse_args()
 if args.gui:
     from gui_native import main
-    main(args.appimage)
+    main(args.appimage, args.speed)
     raise SystemExit(0)
 out = root / "artifacts" / "native-verification"
 out.mkdir(parents=True, exist_ok=True)

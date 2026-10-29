@@ -346,13 +346,14 @@ void runSpeed(const juce::File& tone)
 int main(int argc, char** argv)
 {
     juce::ScopedJuceInitialiser_GUI initialiser;
-    if (argc == 4 && juce::String(argv[1]) == "--write-state")
+    if ((argc == 4 || argc == 5) && juce::String(argv[1]) == "--write-state")
     {
         BackingProcessor processor;
         processor.loadFile(juce::File(argv[2]));
         wait(processor);
         require(processor.hasClip(), "Could not load recording for preset");
         parameter(processor, "gain", 0);
+        if (argc == 5) parameter(processor, "speed", juce::String(argv[4]).getFloatValue());
         juce::MemoryBlock state;
         processor.getStateInformation(state);
         require(juce::File(argv[3]).replaceWithData(state.getData(), state.getSize()), "Could not write preset");

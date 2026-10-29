@@ -1,6 +1,7 @@
 """Exercise the native editor and transport in a separate MuseScore GUI profile."""
 
 from pathlib import Path
+import base64
 import json
 import os
 import re
@@ -10,7 +11,7 @@ import time
 import zipfile
 
 
-def main(appimage):
+def main(appimage, speed=100):
     from Xlib import X, XK, display
     from Xlib.ext import xtest
     root = Path(__file__).resolve().parents[2]
@@ -65,6 +66,8 @@ MuseScore {
             if (Date.now() - root.at < 1200) return;
             console.log("NATIVEGUI phase=" + root.phase + " time=" + root.transport.playTime);
             if (root.phase === 0) {
+                root.transport.tempoMultiplier = __TEMPO__;
+                console.log("NATIVEGUI tempo=" + root.transport.tempoMultiplier);
                 var master = root.mixer.get(root.mixer.count - 1).channelItem;
                 console.log("NATIVEGUI master=" + master.title + " fx=" + master.outputResourceItemList[0].title);
                 master.outputResourceItemList[0].requestToLaunchNativeEditorView();
@@ -86,7 +89,8 @@ MuseScore {
         }
     }
 }
-''')
+'''.replace("__TEMPO__", str(speed / 100)))
+    env_base = {key: value for key, value in os.environ.items() if key != "PYTHONPATH"}
     score = out / "Native GUI Demo.mscz"
     # Keep the live test inaudible without muting the Master generator itself.
     with zipfile.ZipFile(root / "artifacts/native-verification/Native Backing Demo.mscz") as source, zipfile.ZipFile(score, "w", zipfile.ZIP_DEFLATED) as target:
@@ -95,6 +99,14 @@ MuseScore {
             if info.filename == "audiosettings.json":
                 settings = json.loads(value)
                 settings["master"]["volumeDb"] = -144
+                if speed != 100:
+                    # Same recording, with the plugin's speed matching MuseScore's.
+                    wav = next((root / "artifacts/native-verification/demo").glob("*.wav"))
+                    state = out / "component-state-speed.bin"
+                    subprocess.run([str(root / "native/build/ScoreBackingTests_artefacts/Release/ScoreBackingTests"),
+                        "--write-state", str(wav), str(state), str(speed)], check=True, env=env_base)
+                    unit = settings["master"]["fxChain"]["0"]["unitConfiguration"]
+                    unit["componentState"] = base64.b64encode(state.read_bytes()).decode()
                 value = json.dumps(settings).encode()
             target.writestr(info, value)
 
