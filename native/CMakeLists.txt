@@ -1,5 +1,7 @@
-cmake_minimum_required(VERSION 3.22)
-project(ScoreBackingNative VERSION 0.1.0 LANGUAGES C CXX)
+cmake_minimum_required(VERSION 3.24)
+# Must precede project(). Pass -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" for a universal build.
+set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
+project(ScoreBackingNative VERSION 0.2.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -21,6 +23,14 @@ else()
 endif()
 
 include(cmake/JuceShutdownCompatibility.cmake)
+
+# Pitch-preserving time-stretch for practice speeds (MIT licensed, header-only).
+include(FetchContent)
+FetchContent_Declare(signalsmith-stretch
+    GIT_REPOSITORY https://github.com/Signalsmith-Audio/signalsmith-stretch.git
+    GIT_TAG 1.4.0
+    GIT_SHALLOW TRUE)
+FetchContent_MakeAvailable(signalsmith-stretch)
 
 juce_add_plugin(ScoreBacking
     COMPANY_NAME "AlltAWD"
@@ -52,7 +62,7 @@ target_link_libraries(ScoreBacking PRIVATE
     juce::juce_audio_processors
     juce::juce_audio_formats
     juce::juce_gui_extra
-    PUBLIC juce::juce_recommended_config_flags)
+    PUBLIC signalsmith-stretch juce::juce_recommended_config_flags)
 
 if(UNIX AND NOT APPLE)
     # MuseScore 4.7 may discard its deferred instance cleanup at shutdown and

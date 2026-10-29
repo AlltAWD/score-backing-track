@@ -13,6 +13,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout BackingProcessor::makeParame
         "Recording volume", juce::NormalisableRange<float>(-60.0f, 6.0f, 0.1f), -6.0f));
     result.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID { "mute", 1 },
         "Mute recording", false));
+    // Must match MuseScore's playback speed; MuseScore doesn't report it to plugins.
+    result.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID { "speed", 2 },
+        "Playback speed", juce::NormalisableRange<float>(10.0f, 300.0f, 1.0f), 100.0f,
+        juce::AudioParameterFloatAttributes().withLabel("%")));
     return result;
 }
 
@@ -22,7 +26,8 @@ BackingProcessor::BackingProcessor()
       parameters(*this, nullptr, "ScoreBackingState", makeParameters()),
       offsetParameter(parameters.getRawParameterValue("offset")),
       gainParameter(parameters.getRawParameterValue("gain")),
-      muteParameter(parameters.getRawParameterValue("mute"))
+      muteParameter(parameters.getRawParameterValue("mute")),
+      speedParameter(parameters.getRawParameterValue("speed"))
 {
     formats.registerBasicFormats();
 }
@@ -33,13 +38,27 @@ BackingProcessor::~BackingProcessor()
     loader.removeAllJobs(true, -1);
 }
 
-void BackingProcessor::prepareToPlay(double rate, int)
+void BackingProcessor::prepareToPlay(double rate, int maximumBlockSize)
 {
     engineSampleRate = rate > 0 ? rate : 44100;
     gain.reset(engineSampleRate, 0.02);
     gain.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(gainParameter->load()));
+    entry.reset(engineSampleRate, juce::jmax(seekFadeSeconds, 1.0e-9));
+    entry.setCurrentAndTargetValue(1);
     previouslyPlaying = false;
     lastReportedSeconds = -1;
+    previousClip = nullptr;
+
+    // Size everything the stretcher can need for the fastest speed (300%), then
+    // prime it once so later seeks on the audio thread reuse existing storage.
+    stretch.presetDefault(2, static_cast<float>(engineSampleRate));
+    stretchChunk = juce::jmax(64, maximumBlockSize);
+    const int seekSamples = stretch.outputSeekLength(3.0f) + 1;
+    stretchInput.setSize(2, juce::jmax(seekSamples, stretchChunk * 3 + 2));
+    stretchOutput.setSize(2, stretchChunk);
+    stretchInput.clear();
+    stretch.outputSeek(stretchInput.getArrayOfReadPointers(), stretch.outputSeekLength(1.0f));
+    stretchPrimed = false;
 }
 
 bool BackingProcessor::isBusesLayoutSupported(const BusesLayout& layout) const
@@ -75,23 +94,47 @@ void BackingProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Midi
     previouslyPlaying = playing;
     hostSeconds.store(seconds);
     const double offset = static_cast<double>(offsetParameter->load());
-    recordingSeconds.store(seconds + offset);
-    if (!playing || !std::isfinite(seconds) || !std::isfinite(offset)) return;
+    const double speed = static_cast<double>(speedParameter->load()) / 100.0;
+    // MuseScore's speed slider rescales the score's timeline, so the recording
+    // position is speed * host time; seeks keep this relation exactly.
+    const double recordingStart = seconds * speed + offset;
+    recordingSeconds.store(recordingStart);
+    if (!playing || !std::isfinite(recordingStart)) { previousClip = nullptr; return; }
 
     // The audio thread never waits for loading or frees a decoded recording.
     // A swap may skip one block; decoding and deleting old clips happen off-thread.
     const juce::SpinLock::ScopedTryLockType lock(clipLock);
-    if (!lock.isLocked() || clip == nullptr) return;
-    const auto& audio = clip->audio;
-    const int frames = audio.getNumSamples();
-    const double step = clip->sampleRate / engineSampleRate;
-    double source = (seconds + offset) * clip->sampleRate;
+    if (!lock.isLocked() || clip == nullptr) { previousClip = nullptr; return; }
+    const int samples = buffer.getNumSamples();
+    const bool jumped = previousClip != clip.get() || speed != previousSpeed
+        || std::abs(recordingStart - expectedRecordingSeconds) > 0.5 / engineSampleRate;
+    previousClip = clip.get();
+    previousSpeed = speed;
+    expectedRecordingSeconds = recordingStart + samples * speed / engineSampleRate;
+    if (jumped && seekFadeSeconds > 0)
+    {
+        entry.reset(engineSampleRate, seekFadeSeconds);
+        entry.setCurrentAndTargetValue(0);
+        entry.setTargetValue(1);
+    }
     gain.setTargetValue(muteParameter->load() >= 0.5f ? 0.0f
         : juce::Decibels::decibelsToGain(gainParameter->load()));
 
-    for (int sample = 0; sample < buffer.getNumSamples(); ++sample, source += step)
+    if (std::abs(speed - 1.0) > 1.0e-6)
     {
-        const float level = gain.getNextValue();
+        renderStretched(*clip, buffer, recordingStart, speed, jumped);
+        return;
+    }
+    stretchPrimed = false;
+
+    // 100% speed: read the recording directly, sample for sample.
+    const auto& audio = clip->audio;
+    const int frames = audio.getNumSamples();
+    const double step = clip->sampleRate / engineSampleRate;
+    double source = recordingStart * clip->sampleRate;
+    for (int sample = 0; sample < samples; ++sample, source += step)
+    {
+        const float level = gain.getNextValue() * entry.getNextValue();
         if (source < 0 || source >= frames) continue;
         const int first = static_cast<int>(source);
         const int second = juce::jmin(first + 1, frames - 1);
@@ -101,6 +144,64 @@ void BackingProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Midi
             const auto* input = audio.getReadPointer(juce::jmin(channel, audio.getNumChannels() - 1));
             const float value = input[first] + mix * (input[second] - input[first]);
             buffer.addSample(channel, sample, value * level);
+        }
+    }
+}
+
+void BackingProcessor::readRecording(const Clip& source, double startSeconds, int count,
+    juce::AudioBuffer<float>& destination) const
+{
+    // Linear-interpolated stereo read at the engine rate; silence outside the recording.
+    const auto& audio = source.audio;
+    const int frames = audio.getNumSamples();
+    const double step = source.sampleRate / engineSampleRate;
+    double position = startSeconds * source.sampleRate;
+    for (int i = 0; i < count; ++i, position += step)
+        for (int channel = 0; channel < 2; ++channel)
+        {
+            float value = 0;
+            if (position >= 0 && position < frames)
+            {
+                const auto* input = audio.getReadPointer(juce::jmin(channel, audio.getNumChannels() - 1));
+                const int first = static_cast<int>(position);
+                const int second = juce::jmin(first + 1, frames - 1);
+                value = input[first] + static_cast<float>(position - first) * (input[second] - input[first]);
+            }
+            destination.setSample(channel, i, value);
+        }
+}
+
+void BackingProcessor::renderStretched(const Clip& source, juce::AudioBuffer<float>& buffer,
+    double recordingStart, double speed, bool jumped)
+{
+    if (jumped || !stretchPrimed)
+    {
+        // outputSeek aligns the next output sample with recordingStart.
+        const int seekSamples = stretch.outputSeekLength(static_cast<float>(speed));
+        readRecording(source, recordingStart, seekSamples, stretchInput);
+        stretch.outputSeek(stretchInput.getArrayOfReadPointers(), seekSamples);
+        stretchInputSeconds = recordingStart + seekSamples / engineSampleRate;
+        stretchRemainder = 0;
+        stretchPrimed = true;
+    }
+    for (int start = 0; start < buffer.getNumSamples(); start += stretchChunk)
+    {
+        const int count = juce::jmin(stretchChunk, buffer.getNumSamples() - start);
+        // Feed speed * count input samples per block, carrying the fraction, so
+        // the stretched output never drifts from the score.
+        const double wanted = count * speed + stretchRemainder;
+        const int inputCount = static_cast<int>(wanted);
+        stretchRemainder = wanted - inputCount;
+        readRecording(source, stretchInputSeconds, inputCount, stretchInput);
+        stretchInputSeconds += inputCount / engineSampleRate;
+        stretch.process(stretchInput.getArrayOfReadPointers(), inputCount,
+            stretchOutput.getArrayOfWritePointers(), count);
+        for (int sample = 0; sample < count; ++sample)
+        {
+            const float level = gain.getNextValue() * entry.getNextValue();
+            for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+                buffer.addSample(channel, start + sample,
+                    stretchOutput.getSample(juce::jmin(channel, 1), sample) * level);
         }
     }
 }
