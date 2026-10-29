@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.24)
 # Must precede project(). Pass -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" for a universal build.
 set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
 project(ScoreBackingNative VERSION 0.2.0 LANGUAGES C CXX)
+# JUCE builds its juceaide helper in a separate CMake run that ignores the cache
+# variable; without this it targets the SDK's macOS 15, where JUCE 7 can't compile.
+if(APPLE)
+    set(ENV{MACOSX_DEPLOYMENT_TARGET} "${CMAKE_OSX_DEPLOYMENT_TARGET}")
+endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
