@@ -1,4 +1,4 @@
-# Score Backing Track — native VST3, version 0.1.0
+# Score Backing Track — native VST3, version 0.2.0
 
 Play a recording directly inside MuseScore's audio engine. The plugin is an
 audio effect loaded through the Mixer and needs nothing else at runtime.
@@ -26,9 +26,11 @@ Save your score to retain the recording path, offset, volume, and mute setting.
 Audio remains an external file; it is not embedded in the score. If the file is
 moved, open the effect and choose its new location.
 
-Use **100% playback speed** and disable count-in for this prototype. The recording
-must already follow the score's timing. Automatic beat mapping, tempo stretching,
-and comprehensive repeat/jump/fermata support are not implemented.
+To practice slower or faster, set **Playback speed** to the same percentage as
+MuseScore's playback speed (10–300%); MuseScore doesn't report its speed to
+plugins. Disable count-in. The recording must already follow the score's
+timing; automatic beat mapping and comprehensive repeat/jump/fermata support
+are not implemented.
 
 ## Linux installation
 
@@ -68,9 +70,10 @@ tests on Linux and Windows; Windows host behavior in MuseScore is still
 unverified. Pushing a `v*` tag creates a draft release with both zips. Do not
 copy the Linux binary to Windows; build its Windows VST3 counterpart.
 
-Only Linux and Windows are supported for now. macOS is not built or tested; the
-code has no known macOS blockers, but a release would also need signing and
-notarization.
+CI also builds a universal (arm64 + x86_64) macOS bundle for macOS 11+, ad-hoc
+signed so Apple Silicon will load it. It is not notarized: users must remove
+the quarantine attribute (`xattr -dr com.apple.quarantine <bundle>`). macOS
+host behavior in MuseScore is unverified.
 
 ## Verification
 
@@ -111,6 +114,17 @@ run `install_native.py` first. Evidence is written to the git-ignored
 - The decoded-audio limit is 512 MiB. Mono is duplicated into stereo; stereo
   recordings retain their channels. Sample-rate conversion uses linear
   interpolation. Volume changes have a 20 ms ramp.
+- Practice speed: MuseScore implements its speed slider by rescaling the
+  score's tempo map (and re-seeking to the same tick on a change), while the
+  playhead given to effects runs in real time. The recording position is
+  therefore `speed × host seconds + offset`. At 100% the recording is read
+  directly. Other speeds use Signalsmith Stretch 1.4.0: every jump calls
+  `outputSeek()`, which aligns the next output sample with the target
+  position; afterwards `speed × block` input samples are streamed per block,
+  carrying the fractional remainder. The stretcher and its buffers are sized
+  for 300% and primed in `prepareToPlay`, so the audio thread doesn't allocate.
+- Any jump (start, seek, offset or speed change, new recording) is followed by
+  a 5 ms linear fade-in to avoid clicks.
 - MuseScore 4.7's offline Master mixer can report an unchanged sample position
   with a realtime process flag. While playing, repeated timestamps advance by
   the exact block size; any changed timestamp or pause reanchors to the host.
@@ -121,8 +135,8 @@ run `install_native.py` first. Evidence is written to the git-ignored
   in `cmake/JuceShutdownCompatibility.cmake` and affects only this build's JUCE
   checkout.
 
-This is an early prototype. Live audio-device latency, tempo changes, complex
-navigation, and additional hosts need broader testing.
+This is an early release. Live audio-device latency, complex navigation, and
+additional hosts need broader testing.
 
 ## License
 

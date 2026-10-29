@@ -1,6 +1,6 @@
 [project]
 name = "score-backing-track-development"
-version = "0.1.0"
+version = "0.2.0"
 description = "Developer tools for the native Score Backing Track VST3"
 requires-python = ">=3.11"
 license = "GPL-3.0-only"
