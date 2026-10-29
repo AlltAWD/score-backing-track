@@ -360,6 +360,36 @@ int main(int argc, char** argv)
         std::cout << "Preset written: " << argv[3] << '\n';
         return 0;
     }
+    if (argc == 5 && juce::String(argv[1]) == "--render")
+    {
+        // Listening aid: plays a recording through the plugin at a speed (percent)
+        // from score time 0 and writes what MuseScore would hear.
+        BackingProcessor processor;
+        Head head;
+        processor.setPlayHead(&head);
+        processor.loadFile(juce::File(juce::File::getCurrentWorkingDirectory().getChildFile(argv[2])));
+        wait(processor);
+        require(processor.hasClip(), "Could not load recording to render");
+        parameter(processor, "gain", 0);
+        const float speed = juce::String(argv[4]).getFloatValue();
+        parameter(processor, "speed", speed);
+        processor.prepareToPlay(48000, 512);
+        const auto output = juce::File::getCurrentWorkingDirectory().getChildFile(argv[3]);
+        output.deleteFile();
+        juce::WavAudioFormat format;
+        std::unique_ptr<juce::AudioFormatWriter> writer(format.createWriterFor(
+            output.createOutputStream().release(), 48000, 2, 24, {}, 0));
+        require(writer != nullptr, "Could not create output WAV");
+        juce::AudioBuffer<float> block(2, 512);
+        const auto total = static_cast<int64_t>(processor.getDuration() * 100.0 / speed * 48000);
+        for (head.samples = 0; head.samples < total; head.samples += 512)
+        {
+            process(processor, block);
+            writer->writeFromAudioSampleBuffer(block, 0, 512);
+        }
+        std::cout << "Rendered " << total / 48000.0 << " s at " << speed << "%: " << output.getFullPathName() << '\n';
+        return 0;
+    }
     const auto wav = makeWave();
     const auto tone = makeTone();
     int result = 0;
