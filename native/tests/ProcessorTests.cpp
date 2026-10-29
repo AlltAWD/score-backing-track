@@ -87,6 +87,16 @@ void run(const juce::File& wav)
     juce::AudioBuffer<float> block(2, 128);
     std::cout << "  raw defaults: speed=" << juce::String(processor.parameters.getRawParameterValue("speed")->load(), 9)
               << " offset=" << juce::String(processor.parameters.getRawParameterValue("offset")->load(), 9) << '\n';
+    // Offsets are exact milliseconds, including the default, on every platform.
+    auto* offsetRaw = processor.parameters.getRawParameterValue("offset");
+    require(offsetRaw->load() == 0.0f, "Default offset is not exactly zero");
+    for (const float value : { 0.125f, -0.01f, 1.234f, -599.999f })
+    {
+        parameter(processor, "offset", value);
+        near(offsetRaw->load(), value, "Offset not snapped to exact milliseconds", 1.0e-6f);
+    }
+    parameter(processor, "offset", 0);
+    require(offsetRaw->load() == 0.0f, "Offset reset is not exactly zero");
 
     // A generator effect must preserve the existing score mix, even without audio.
     process(processor, block, 0.1f);

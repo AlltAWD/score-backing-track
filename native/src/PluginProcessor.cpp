@@ -7,8 +7,18 @@
 juce::AudioProcessorValueTreeState::ParameterLayout BackingProcessor::makeParameters()
 {
     juce::AudioProcessorValueTreeState::ParameterLayout result;
+    // Offset snaps to an exact 1 ms grid computed in double: float snapping near
+    // +/-600 s leaves up to ~6e-5 s of noise (0 became 2.8e-5 s on macOS).
+    const auto toMilliseconds = [](double seconds) { return static_cast<float>(std::round(seconds * 1000.0) / 1000.0); };
+    juce::NormalisableRange<float> offsetRange(-600.0f, 600.0f,
+        [toMilliseconds](float start, float end, float proportion)
+        { return toMilliseconds(start + (static_cast<double>(end) - start) * proportion); },
+        [](float start, float end, float value)
+        { return static_cast<float>((static_cast<double>(value) - start) / (static_cast<double>(end) - start)); },
+        [toMilliseconds](float start, float end, float value)
+        { return toMilliseconds(juce::jlimit<double>(start, end, value)); });
     result.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID { "offset", 1 },
-        "Recording offset", juce::NormalisableRange<float>(-600.0f, 600.0f, 0.001f), 0.0f));
+        "Recording offset", offsetRange, 0.0f));
     result.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID { "gain", 1 },
         "Recording volume", juce::NormalisableRange<float>(-60.0f, 6.0f, 0.1f), -6.0f));
     result.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID { "mute", 1 },
