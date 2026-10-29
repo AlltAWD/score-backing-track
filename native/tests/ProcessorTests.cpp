@@ -17,7 +17,9 @@ void require(bool value, const char* message)
 }
 void near(float actual, float expected, const char* message, float tolerance = 0.00015f)
 {
-    require(std::abs(actual - expected) < tolerance, message);
+    const auto detail = juce::String(message) + " (actual " + juce::String(actual, 6)
+        + ", expected " + juce::String(expected, 6) + ")";
+    require(std::abs(actual - expected) < tolerance, detail.toRawUTF8());
 }
 
 class Head final : public juce::AudioPlayHead
