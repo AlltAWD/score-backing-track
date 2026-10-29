@@ -94,7 +94,9 @@ void BackingProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Midi
     previouslyPlaying = playing;
     hostSeconds.store(seconds);
     const double offset = static_cast<double>(offsetParameter->load());
-    const double speed = static_cast<double>(speedParameter->load()) / 100.0;
+    // Whole percents only: the parameter's 0..1 round trip can leave float noise,
+    // which must not divert exact 100% playback into the stretcher.
+    const double speed = std::round(static_cast<double>(speedParameter->load())) / 100.0;
     // MuseScore's speed slider rescales the score's timeline, so the recording
     // position is speed * host time; seeks keep this relation exactly.
     const double recordingStart = seconds * speed + offset;

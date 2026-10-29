@@ -85,6 +85,8 @@ void run(const juce::File& wav)
     parameter(processor, "gain", 0);
     processor.prepareToPlay(48000, 2048);
     juce::AudioBuffer<float> block(2, 128);
+    std::cout << "  raw defaults: speed=" << juce::String(processor.parameters.getRawParameterValue("speed")->load(), 9)
+              << " offset=" << juce::String(processor.parameters.getRawParameterValue("offset")->load(), 9) << '\n';
 
     // A generator effect must preserve the existing score mix, even without audio.
     process(processor, block, 0.1f);
